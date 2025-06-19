@@ -2,17 +2,27 @@ from flask import Flask, render_template, request, redirect
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching for templates
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching
 
 queue = []
 doctor_notes = []
 
-@app.route('/')
+@app.route('/', methods=['GET'])
 def index():
-    return render_template('patient.html')
+    search_mrn = request.args.get('search_mrn')
+    visits = []
+    
+    if search_mrn:
+        # Combine queue and doctor_notes for complete visit history
+        for entry in doctor_notes:
+            if entry['mrn'] == search_mrn:
+                visits.append(entry)
+    
+    return render_template('patient.html', visits=visits if visits else None, search=search_mrn)
 
 @app.route('/submit', methods=['POST'])
 def submit():
+    mrn = request.form['mrn']
     name = request.form['name']
     age = request.form['age']
     gender = request.form['gender']
@@ -28,6 +38,7 @@ def submit():
     color = '🔴' if priority == 'Critical' else '🟡' if priority == 'Moderate' else '🟢'
 
     patient = {
+        'mrn': mrn,
         'name': name,
         'age': age,
         'gender': gender,
@@ -55,16 +66,18 @@ def admin():
 def doctor():
     if request.method == 'POST':
         if queue:
-            patient = queue.pop(0)  # Remove the current patient after treatment
+            patient = queue.pop(0)  # Remove treated patient
             medicine = request.form.get('medicine')
             test = request.form.get('test')
             doctor_notes.append({
-                'patient': patient['name'],
+                'mrn': patient['mrn'],
+                'name': patient['name'],
+                'complaint': patient['complaint'],
                 'medicine': medicine,
                 'test': test,
                 'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             })
-        return redirect('/doctor')  # Show the next patient
+        return redirect('/doctor')
 
     patient = queue[0] if queue else None
     return render_template('doctor.html', patient=patient)
