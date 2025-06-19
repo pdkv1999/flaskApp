@@ -1,8 +1,9 @@
-
 from flask import Flask, render_template, request, redirect
 from datetime import datetime
 
 app = Flask(__name__)
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching for templates
+
 queue = []
 doctor_notes = []
 
@@ -52,18 +53,20 @@ def admin():
 
 @app.route('/doctor', methods=['GET', 'POST'])
 def doctor():
-    patient = queue[0] if queue else None
     if request.method == 'POST':
-        medicine = request.form.get('medicine')
-        test = request.form.get('test')
-        if patient:
+        if queue:
+            patient = queue.pop(0)  # Remove the current patient after treatment
+            medicine = request.form.get('medicine')
+            test = request.form.get('test')
             doctor_notes.append({
                 'patient': patient['name'],
                 'medicine': medicine,
                 'test': test,
                 'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             })
-        return redirect('/doctor')
+        return redirect('/doctor')  # Show the next patient
+
+    patient = queue[0] if queue else None
     return render_template('doctor.html', patient=patient)
 
 if __name__ == '__main__':
