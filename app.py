@@ -1,8 +1,16 @@
 from flask import Flask, render_template, request, redirect
 from datetime import datetime
+import joblib
+import numpy as np
+import pandas as pd
 
 app = Flask(__name__)
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching
+
+# Load AdaBoost model and metadata
+model = joblib.load('models/adaboost_model.pkl')
+feature_columns = joblib.load('models/vital_columns.pkl')
+label_encoder = joblib.load('models/tfidf_vectorizer.pkl')
 
 queue = []
 doctor_notes = []
@@ -27,13 +35,41 @@ def submit():
     age = request.form['age']
     gender = request.form['gender']
     complaint = request.form['complaint']
-    sbp = request.form['sbp']
-    dbp = request.form['dbp']
-    temp = request.form['temp']
-    hr = request.form['hr']
-    rr = request.form['rr']
-    o2 = request.form['o2']
-    priority = request.form['priority']
+    sbp = float(request.form['sbp'])
+    dbp = float(request.form['dbp'])
+    temp = float(request.form['temp'])
+    hr = float(request.form['hr'])
+    rr = float(request.form['rr'])
+    o2 = float(request.form['o2'])
+
+    # Map complaint to encoded value used in training
+    complaint_mapping = {
+        'fever': 1,
+        'chest pain': 2,
+        'headache': 3,
+        'abdominal pain': 4,
+        'cough': 5
+    }
+    chiefcomplaint = complaint_mapping.get(complaint.lower(), 0)
+
+    # Build model input
+    input_dict = {
+        'chiefcomplaint': chiefcomplaint,
+        'temperature': temp,
+        'heartrate': hr,
+        'resprate': rr,
+        'o2sat': o2,
+        'sbp': sbp,
+        'dbp': dbp,
+        'pain': 0  # You can make this dynamic later
+    }
+
+    input_df = pd.DataFrame([input_dict])
+    input_df = input_df[feature_columns]
+
+    # Predict
+    pred_encoded = model.predict(input_df)[0]
+    priority = label_encoder.inverse_transform([pred_encoded])[0]
 
     color = '🔴' if priority == 'Critical' else '🟡' if priority == 'Moderate' else '🟢'
 
