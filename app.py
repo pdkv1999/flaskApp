@@ -7,11 +7,12 @@ import pandas as pd
 app = Flask(__name__)
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching
 
-# Load AdaBoost model and metadata
-model = joblib.load('models/adaboost_model.pkl')
-feature_columns = joblib.load('models/vital_columns.pkl')
-label_encoder = joblib.load('models/tfidf_vectorizer.pkl')
+# ✅ Load Model and Preprocessing Objects
+model = joblib.load('models/adaboost_model.pkl')           # Trained AdaBoost model
+tfidf = joblib.load('models/tfidf_vectorizer.pkl')         # Trained TF-IDF vectorizer
+feature_columns = joblib.load('models/vital_columns.pkl')  # Vital columns order (optional)
 
+# Queue and visit history
 queue = []
 doctor_notes = []
 
@@ -19,13 +20,12 @@ doctor_notes = []
 def index():
     search_mrn = request.args.get('search_mrn')
     visits = []
-    
+
     if search_mrn:
-        # Combine queue and doctor_notes for complete visit history
         for entry in doctor_notes:
             if entry['mrn'] == search_mrn:
                 visits.append(entry)
-    
+
     return render_template('patient.html', visits=visits if visits else None, search=search_mrn)
 
 @app.route('/submit', methods=['POST'])
@@ -42,37 +42,22 @@ def submit():
     rr = float(request.form['rr'])
     o2 = float(request.form['o2'])
 
-    # Map complaint to encoded value used in training
-    complaint_mapping = {
-        'fever': 1,
-        'chest pain': 2,
-        'headache': 3,
-        'abdominal pain': 4,
-        'cough': 5
-    }
-    chiefcomplaint = complaint_mapping.get(complaint.lower(), 0)
+    # ✅ Step 1: Vectorize chief complaint using TF-IDF
+    chiefcomplaint_vector = tfidf.transform([complaint]).toarray()
 
-    # Build model input
-    input_dict = {
-        'chiefcomplaint': chiefcomplaint,
-        'temperature': temp,
-        'heartrate': hr,
-        'resprate': rr,
-        'o2sat': o2,
-        'sbp': sbp,
-        'dbp': dbp,
-        'pain': 0  # You can make this dynamic later
-    }
+    # ✅ Step 2: Prepare numeric vital features
+    vital_input = np.array([[temp, hr, rr, o2, sbp, dbp, 0]])  # Pain is 0 (placeholder)
 
-    input_df = pd.DataFrame([input_dict])
-    input_df = input_df[feature_columns]
+    # ✅ Step 3: Combine TF-IDF and vitals
+    final_input = np.hstack((chiefcomplaint_vector, vital_input))
 
-    # Predict
-    pred_encoded = model.predict(input_df)[0]
-    priority = label_encoder.inverse_transform([pred_encoded])[0]
+    # ✅ Step 4: Predict
+    pred_label = model.predict(final_input)[0]  # Returns "Critical", "Moderate", or "Low"
 
-    color = '🔴' if priority == 'Critical' else '🟡' if priority == 'Moderate' else '🟢'
+    # Priority color
+    color = '🔴' if pred_label == 'Critical' else '🟡' if pred_label == 'Moderate' else '🟢'
 
+    # ✅ Step 5: Build patient object
     patient = {
         'mrn': mrn,
         'name': name,
@@ -85,13 +70,14 @@ def submit():
         'hr': hr,
         'rr': rr,
         'o2': o2,
-        'priority': priority,
+        'priority': pred_label,
         'color': color,
         'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     }
 
     queue.append(patient)
     queue.sort(key=lambda x: {'Critical': 1, 'Moderate': 2, 'Low': 3}[x['priority']])
+
     return redirect('/admin')
 
 @app.route('/admin')
@@ -102,9 +88,10 @@ def admin():
 def doctor():
     if request.method == 'POST':
         if queue:
-            patient = queue.pop(0)  # Remove treated patient
+            patient = queue.pop(0)
             medicine = request.form.get('medicine')
             test = request.form.get('test')
+
             doctor_notes.append({
                 'mrn': patient['mrn'],
                 'name': patient['name'],
@@ -113,6 +100,7 @@ def doctor():
                 'test': test,
                 'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             })
+
         return redirect('/doctor')
 
     patient = queue[0] if queue else None
