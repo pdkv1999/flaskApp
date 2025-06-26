@@ -7,7 +7,7 @@ import pandas as pd
 app = Flask(__name__)
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching
 
-# ✅ Load Model and Preprocessing Objects
+# Load Model and Preprocessing Objects
 model = joblib.load('models/adaboost_model.pkl')           # Trained AdaBoost model
 tfidf = joblib.load('models/tfidf_vectorizer.pkl')         # Trained TF-IDF vectorizer
 feature_columns = joblib.load('models/vital_columns.pkl')  # Vital columns order (optional)
@@ -42,22 +42,22 @@ def submit():
     rr = float(request.form['rr'])
     o2 = float(request.form['o2'])
 
-    # ✅ Step 1: Vectorize chief complaint using TF-IDF
+    # Step 1: Vectorize chief complaint using TF-IDF
     chiefcomplaint_vector = tfidf.transform([complaint]).toarray()
 
-    # ✅ Step 2: Prepare numeric vital features
+    # Step 2: Prepare numeric vital features
     vital_input = np.array([[temp, hr, rr, o2, sbp, dbp, 0]])  # Pain is 0 (placeholder)
 
-    # ✅ Step 3: Combine TF-IDF and vitals
+    # Step 3: Combine TF-IDF and vitals
     final_input = np.hstack((chiefcomplaint_vector, vital_input))
 
-    # ✅ Step 4: Predict
+    # Step 4: Predict
     pred_label = model.predict(final_input)[0]  # Returns "Critical", "Moderate", or "Low"
 
     # Priority color
     color = '🔴' if pred_label == 'Critical' else '🟡' if pred_label == 'Moderate' else '🟢'
 
-    # ✅ Step 5: Build patient object
+    # Step 5: Build patient object
     patient = {
         'mrn': mrn,
         'name': name,
