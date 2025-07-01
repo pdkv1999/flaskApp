@@ -3,18 +3,25 @@ from flask_pymongo import PyMongo
 from datetime import datetime
 import joblib
 import numpy as np
+import os
 
 app = Flask(__name__)
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching
 
-# MongoDB Connection (replace with your actual credentials)
+# MongoDB Connection
 app.config["MONGO_URI"] = "mongodb+srv://124116108:2GX4qsf4uHUGT09e@dileep-nasa-api.xwdqi.mongodb.net/flask_triage_system?retryWrites=true&w=majority&appName=Dileep-NASA-API"
 mongo = PyMongo(app)
 
+# === Safe model loading for Render ===
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_DIR = os.path.join(BASE_DIR, 'models')
+
+print("Render model directory contents:", os.listdir(MODEL_DIR))  # Debugging
+
 # Load Model and Preprocessing Objects
-model = joblib.load('models/adaboost_model.pkl')
-tfidf = joblib.load('models/tfidf_vectorizer.pkl')
-feature_columns = joblib.load('models/vital_columns.pkl')
+model = joblib.load(os.path.join(MODEL_DIR, 'adaboost_model.pkl'))
+tfidf = joblib.load(os.path.join(MODEL_DIR, 'tfidf_vectorizer.pkl'))
+feature_columns = joblib.load(os.path.join(MODEL_DIR, 'vital_columns.pkl'))
 
 # In-memory queue
 queue = []
