@@ -12,7 +12,7 @@ app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching
 app.config["MONGO_URI"] = "mongodb+srv://124116108:2GX4qsf4uHUGT09e@dileep-nasa-api.xwdqi.mongodb.net/flask_triage_system?retryWrites=true&w=majority&appName=Dileep-NASA-API"
 mongo = PyMongo(app)
 
-# === Safe model loading for Render ===
+# === Safe model loading for Replit or Render ===
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR = os.path.join(BASE_DIR, 'models')
 
@@ -111,4 +111,5 @@ def doctor():
     return render_template('doctor.html', patient=patient)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
