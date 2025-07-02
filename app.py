@@ -9,7 +9,8 @@ app = Flask(__name__)
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching
 
 # MongoDB Connection
-app.config["MONGO_URI"] = "mongodb+srv://124116108:2GX4qsf4uHUGT09e@dileep-nasa-api.xwdqi.mongodb.net/flask_triage_system?retryWrites=true&w=majority&appName=Dileep-NASA-API"
+app.config["MONGO_URI"] = "mongodb://localhost:27017/flask_triage_system"
+# app.config["MONGO_URI"] = "mongodb+srv://124116108:2GX4qsf4uHUGT09e@dileep-cluster.fllqptl.mongodb.net/flask_triage_system?retryWrites=true&w=majority&appName=Dileep-Cluster"
 mongo = PyMongo(app)
 
 # === Safe model loading for Replit or Render ===
@@ -111,5 +112,4 @@ def doctor():
     return render_template('doctor.html', patient=patient)
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+    app.run(debug=True)
