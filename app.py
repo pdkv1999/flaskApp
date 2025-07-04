@@ -1,41 +1,55 @@
-from flask import Flask, render_template, request, redirect
+from flask import Flask, render_template, request, redirect, jsonify, flash
 from flask_pymongo import PyMongo
+from flask_socketio import SocketIO, emit
 from datetime import datetime
 import joblib
 import numpy as np
 import os
 
 app = Flask(__name__)
-app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching
+app.secret_key = 'triage_secret_key'
 
-# MongoDB Connection
 app.config["MONGO_URI"] = "mongodb://localhost:27017/flask_triage_system"
-# app.config["MONGO_URI"] = "mongodb+srv://124116108:2GX4qsf4uHUGT09e@dileep-cluster.fllqptl.mongodb.net/flask_triage_system?retryWrites=true&w=majority&appName=Dileep-Cluster"
 mongo = PyMongo(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
-# === Safe model loading for Replit or Render ===
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR = os.path.join(BASE_DIR, 'models')
-
-print("Render model directory contents:", os.listdir(MODEL_DIR))  # Debugging
-
-# Load Model and Preprocessing Objects
 model = joblib.load(os.path.join(MODEL_DIR, 'adaboost_model.pkl'))
 tfidf = joblib.load(os.path.join(MODEL_DIR, 'tfidf_vectorizer.pkl'))
 feature_columns = joblib.load(os.path.join(MODEL_DIR, 'vital_columns.pkl'))
 
-# In-memory queue
-queue = []
+current_patient = None
 
-@app.route('/', methods=['GET'])
+@app.route('/')
 def index():
     search_mrn = request.args.get('search_mrn')
-    visits = []
+    visits = list(mongo.db.visits.find({'mrn': search_mrn})) if search_mrn else []
 
-    if search_mrn:
-        visits = list(mongo.db.visits.find({'mrn': search_mrn}))
+    # Get all booked appointment slots
+    appointments = list(mongo.db.patients.find({}, {"_id": 0, "arrival_time": 1}))
 
-    return render_template('patient.html', visits=visits if visits else None, search=search_mrn)
+    booked_slots = []
+    date_counter = {}
+
+    for entry in appointments:
+        if "arrival_time" in entry:
+            arrival = entry["arrival_time"]
+            booked_slots.append(arrival)
+            date_part = arrival.split()[0]
+            date_counter[date_part] = date_counter.get(date_part, 0) + 1
+
+    # Fully booked dates (16 slots per day)
+    fully_booked_days = [date for date, count in date_counter.items() if count >= 16]
+
+    return render_template(
+        'patient.html',
+        visits=visits if visits else None,
+        search=search_mrn,
+        booked_slots=booked_slots,
+        fully_booked_days=fully_booked_days
+    )
+
 
 @app.route('/submit', methods=['POST'])
 def submit():
@@ -44,19 +58,24 @@ def submit():
     age = request.form['age']
     gender = request.form['gender']
     complaint = request.form['complaint']
-    sbp = float(request.form['sbp'])
-    dbp = float(request.form['dbp'])
-    temp = float(request.form['temp'])
-    hr = float(request.form['hr'])
-    rr = float(request.form['rr'])
-    o2 = float(request.form['o2'])
+    appointment_date = request.form['appointment_date']
+    appointment_time = request.form['appointment_time']
+    arrival_time = f"{appointment_date} {appointment_time}"
 
-    # Vectorize complaint
+    sbp, dbp, temp, hr, rr, o2 = map(float, [
+        request.form['sbp'],
+        request.form['dbp'],
+        request.form['temp'],
+        request.form['hr'],
+        request.form['rr'],
+        request.form['o2']
+    ])
+
+    # Predict severity
     chiefcomplaint_vector = tfidf.transform([complaint]).toarray()
     vital_input = np.array([[temp, hr, rr, o2, sbp, dbp, 0]])
     final_input = np.hstack((chiefcomplaint_vector, vital_input))
     pred_label = model.predict(final_input)[0]
-
     color = '🔴' if pred_label == 'Critical' else '🟡' if pred_label == 'Moderate' else '🟢'
 
     patient = {
@@ -73,43 +92,91 @@ def submit():
         'o2': o2,
         'priority': pred_label,
         'color': color,
+        'arrival_time': arrival_time,
         'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     }
 
-    # Store to MongoDB
     mongo.db.patients.insert_one(patient)
-
-    # Add to queue
-    queue.append(patient)
-    queue.sort(key=lambda x: {'Critical': 1, 'Moderate': 2, 'Low': 3}[x['priority']])
-
     return redirect('/admin')
 
 @app.route('/admin')
 def admin():
-    return render_template('admin.html', patients=queue)
+    severity_order = {"Critical": 1, "Moderate": 2, "Low": 3}
+    patients = list(mongo.db.patients.find())
+
+    # Sort patients by severity then arrival_time
+    patients.sort(key=lambda p: (
+        severity_order.get(p.get('priority', 'Low'), 4),
+        p.get('arrival_time', '')
+    ))
+
+    # Group patients by date part of arrival_time
+    grouped_patients = {}
+    for patient in patients:
+        arrival_date = patient.get('arrival_time', '').split(' ')[0]
+        grouped_patients.setdefault(arrival_date, []).append(patient)
+
+    # Sort the grouped keys (dates) ascending
+    grouped_patients = dict(sorted(grouped_patients.items()))
+
+    return render_template('admin.html', grouped_patients=grouped_patients)
+
 
 @app.route('/doctor', methods=['GET', 'POST'])
 def doctor():
-    if request.method == 'POST':
-        if queue:
-            patient = queue.pop(0)
-            medicine = request.form.get('medicine')
-            test = request.form.get('test')
+    global current_patient
 
-            mongo.db.visits.insert_one({
-                'mrn': patient['mrn'],
-                'name': patient['name'],
-                'complaint': patient['complaint'],
-                'medicine': medicine,
-                'test': test,
-                'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            })
+    if request.method == 'POST' and current_patient:
+        medicine = request.form.get('medicine')
+        test = request.form.get('test')
 
+        mongo.db.visits.insert_one({
+            'mrn': current_patient['mrn'],
+            'name': current_patient['name'],
+            'complaint': current_patient['complaint'],
+            'medicine': medicine,
+            'test': test,
+            'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+
+        # ✅ Handle old data without 'arrival_time'
+        delete_query = {'mrn': current_patient['mrn']}
+        if 'arrival_time' in current_patient:
+            delete_query['arrival_time'] = current_patient['arrival_time']
+
+        mongo.db.patients.delete_one(delete_query)
+
+        current_patient = None
         return redirect('/doctor')
 
-    patient = queue[0] if queue else None
-    return render_template('doctor.html', patient=patient)
+    if not current_patient:
+        severity_order = {"Critical": 1, "Moderate": 2, "Low": 3}
+        patients = list(mongo.db.patients.find())
+        patients.sort(key=lambda p: (
+            severity_order.get(p.get('priority', 'Low'), 4),
+            p.get('arrival_time', '')
+        ))
+        if patients:
+            current_patient = patients[0]
+
+    return render_template('doctor.html', patient=current_patient)
+
+@app.route('/update_severity', methods=['POST'])
+def update_severity():
+    data = request.json
+    mrn = data.get('mrn')
+    new_priority = data.get('priority')
+
+    severity_colors = {'Critical': '🔴', 'Moderate': '🟡', 'Low': '🟢'}
+    new_color = severity_colors.get(new_priority, '⚪')
+
+    result = mongo.db.patients.update_one(
+        {'mrn': mrn},
+        {'$set': {'priority': new_priority, 'color': new_color}}
+    )
+
+    socketio.emit('severity_updated', {'mrn': mrn, 'priority': new_priority})
+    return jsonify(success=(result.modified_count > 0))
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    socketio.run(app, debug=True)
