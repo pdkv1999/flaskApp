@@ -4,44 +4,6 @@
     <meta charset="UTF-8">
     <title>Patient Registration</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script>
-    const bookedSlots = {{ booked_slots | tojson }};
-    const fullyBookedDays = {{ fully_booked_days | tojson }};
-
-    window.onload = function () {
-        const today = new Date();
-        const maxDate = new Date();
-        maxDate.setDate(today.getDate() + 2);
-
-        const format = date => date.toISOString().split('T')[0];
-        const dateInput = document.getElementById("appointment_date");
-
-        dateInput.setAttribute("min", format(today));
-        dateInput.setAttribute("max", format(maxDate));
-
-        // Block fully booked dates
-        dateInput.addEventListener("input", function () {
-            if (fullyBookedDays.includes(dateInput.value)) {
-                alert("This date is fully booked. Please select another day.");
-                dateInput.value = "";
-            } else {
-                filterTimeSlots();
-            }
-        });
-    };
-
-    function filterTimeSlots() {
-        const selectedDate = document.getElementById("appointment_date").value;
-        const bookedTimes = bookedSlots
-            .filter(dt => dt.startsWith(selectedDate))
-            .map(dt => dt.split(" ")[1]);
-
-        const timeSelect = document.querySelector("select[name='appointment_time']");
-        Array.from(timeSelect.options).forEach(option => {
-            option.disabled = bookedTimes.includes(option.value);
-        });
-    }
-    </script>
 </head>
 <body class="bg-light">
 <div class="container mt-5">
@@ -65,17 +27,17 @@
 
                 <div class="mb-3">
                     <label class="form-label">MRN</label>
-                    <input type="text" name="mrn" class="form-control" required>
+                    <input type="text" name="mrn" class="form-control" required autocomplete="off">
                 </div>
 
                 <div class="row mb-3">
                     <div class="col">
                         <label class="form-label">Name</label>
-                        <input type="text" name="name" class="form-control" required>
+                        <input type="text" name="name" class="form-control" required autocomplete="off">
                     </div>
                     <div class="col">
                         <label class="form-label">Age</label>
-                        <input type="number" name="age" class="form-control" required>
+                        <input type="number" name="age" class="form-control" required autocomplete="off">
                     </div>
                     <div class="col">
                         <label class="form-label">Gender</label>
@@ -89,51 +51,36 @@
 
                 <div class="mb-3">
                     <label class="form-label">Chief Complaint</label>
-                    <input type="text" name="complaint" class="form-control" required>
+                    <input type="text" name="complaint" class="form-control" required autocomplete="off">
                 </div>
 
                 <div class="row mb-3">
                     <div class="col">
                         <label class="form-label">Systolic BP</label>
-                        <input type="number" name="sbp" class="form-control" required>
+                        <input type="number" name="sbp" class="form-control" required autocomplete="off">
                     </div>
                     <div class="col">
                         <label class="form-label">Diastolic BP</label>
-                        <input type="number" name="dbp" class="form-control" required>
+                        <input type="number" name="dbp" class="form-control" required autocomplete="off">
                     </div>
                     <div class="col">
                         <label class="form-label">Temperature</label>
-                        <input type="number" step="0.1" name="temp" class="form-control" required>
+                        <input type="number" step="0.1" name="temp" class="form-control" required autocomplete="off">
                     </div>
                 </div>
 
                 <div class="row mb-3">
                     <div class="col">
                         <label class="form-label">Heart Rate</label>
-                        <input type="number" name="hr" class="form-control" required>
+                        <input type="number" name="hr" class="form-control" required autocomplete="off">
                     </div>
                     <div class="col">
                         <label class="form-label">Respiratory Rate</label>
-                        <input type="number" name="rr" class="form-control" required>
+                        <input type="number" name="rr" class="form-control" required autocomplete="off">
                     </div>
                     <div class="col">
                         <label class="form-label">O2 Saturation</label>
-                        <input type="number" name="o2" class="form-control" required>
-                    </div>
-                </div>
-
-                <div class="row mb-3">
-                    <div class="col">
-                        <label class="form-label">Appointment Date</label>
-                        <input type="date" id="appointment_date" name="appointment_date" class="form-control" required>
-                    </div>
-                    <div class="col">
-                        <label class="form-label">Appointment Time</label>
-                        <select name="appointment_time" class="form-control" required>
-                            {% for i in range(16) %}
-                                <option>{{ (loop.index0 * 30 + 540) // 60 }}:{% if (loop.index0 * 30 + 540) % 60 == 0 %}00{% else %}30{% endif %}</option>
-                            {% endfor %}
-                        </select>
+                        <input type="number" name="o2" class="form-control" required autocomplete="off">
                     </div>
                 </div>
 
@@ -145,7 +92,7 @@
         <div class="col-md-6">
             <h2>Patient Visits</h2>
             <form method="GET" action="/" class="input-group mb-3">
-                <input type="text" class="form-control" name="search_mrn" placeholder="Enter MRN to view visits" required>
+                <input type="text" class="form-control" name="search_mrn" placeholder="Enter MRN to view visits" required autocomplete="off">
                 <button class="btn btn-outline-secondary" type="submit">Search</button>
             </form>
 
@@ -168,5 +115,46 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const mrnInput = document.querySelector('input[name="mrn"]');
+    const nameInput = document.querySelector('input[name="name"]');
+    const ageInput = document.querySelector('input[name="age"]');
+    const genderSelect = document.querySelector('select[name="gender"]');
+
+    let fetchTimeout = null;
+
+    mrnInput.addEventListener('input', function() {
+        clearTimeout(fetchTimeout);
+        const mrn = mrnInput.value.trim();
+        if (mrn.length === 0) {
+            nameInput.value = '';
+            ageInput.value = '';
+            genderSelect.value = 'Male'; // default
+            return;
+        }
+
+        fetchTimeout = setTimeout(() => {
+            fetch(`/get_patient_info?mrn=${encodeURIComponent(mrn)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.name !== undefined) {
+                        nameInput.value = data.name || '';
+                        ageInput.value = data.age || '';
+                        genderSelect.value = data.gender || 'Male';
+                    } else {
+                        nameInput.value = '';
+                        ageInput.value = '';
+                        genderSelect.value = 'Male';
+                    }
+                }).catch(err => {
+                    console.error('Error fetching patient info:', err);
+                });
+        }, 500);
+    });
+});
+</script>
+
 </body>
 </html>

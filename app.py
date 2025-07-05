@@ -21,12 +21,28 @@ feature_columns = joblib.load(os.path.join(MODEL_DIR, 'vital_columns.pkl'))
 
 current_patient = None
 
+def get_time_block(arrival_str):
+    try:
+        time_part = arrival_str.split()[1]
+        hour = int(time_part.split(':')[0])
+    except Exception:
+        return 'Other'
+    if 9 <= hour < 12:
+        return 'Morning (9-12)'
+    elif 13 <= hour < 16:
+        return 'Afternoon (1-4)'
+    elif 17 <= hour < 20:
+        return 'Evening (5-8)'
+    elif 21 <= hour < 24:
+        return 'Late Night (9-12)'
+    else:
+        return 'Other'
+
 @app.route('/')
 def index():
     search_mrn = request.args.get('search_mrn')
     visits = list(mongo.db.visits.find({'mrn': search_mrn})) if search_mrn else []
 
-    # Get all booked appointment slots
     appointments = list(mongo.db.patients.find({}, {"_id": 0, "arrival_time": 1}))
 
     booked_slots = []
@@ -39,7 +55,6 @@ def index():
             date_part = arrival.split()[0]
             date_counter[date_part] = date_counter.get(date_part, 0) + 1
 
-    # Fully booked dates (16 slots per day)
     fully_booked_days = [date for date, count in date_counter.items() if count >= 16]
 
     return render_template(
@@ -50,6 +65,21 @@ def index():
         fully_booked_days=fully_booked_days
     )
 
+@app.route('/get_patient_info')
+def get_patient_info():
+    mrn = request.args.get('mrn', '').strip()
+    if not mrn:
+        return jsonify({'error': 'MRN required'}), 400
+    
+    patient = mongo.db.patients.find_one({'mrn': mrn})
+    if patient:
+        return jsonify({
+            'name': patient.get('name', ''),
+            'age': patient.get('age', ''),
+            'gender': patient.get('gender', '')
+        })
+    else:
+        return jsonify({})
 
 @app.route('/submit', methods=['POST'])
 def submit():
@@ -58,9 +88,8 @@ def submit():
     age = request.form['age']
     gender = request.form['gender']
     complaint = request.form['complaint']
-    appointment_date = request.form['appointment_date']
-    appointment_time = request.form['appointment_time']
-    arrival_time = f"{appointment_date} {appointment_time}"
+
+    arrival_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     sbp, dbp, temp, hr, rr, o2 = map(float, [
         request.form['sbp'],
@@ -71,11 +100,26 @@ def submit():
         request.form['o2']
     ])
 
-    # Predict severity
     chiefcomplaint_vector = tfidf.transform([complaint]).toarray()
     vital_input = np.array([[temp, hr, rr, o2, sbp, dbp, 0]])
     final_input = np.hstack((chiefcomplaint_vector, vital_input))
-    pred_label = model.predict(final_input)[0]
+
+    try:
+        probs = model.predict_proba(final_input)[0]
+    except AttributeError:
+        probs = []
+
+    if len(probs) == 3:
+        critical_prob, low_prob, moderate_prob = probs
+        if critical_prob > 0.5:
+            pred_label = 'Critical'
+        elif moderate_prob >= 0.35 and low_prob < 0.65:
+            pred_label = 'Moderate'
+        else:
+            pred_label = 'Low'
+    else:
+        pred_label = 'Low'
+
     color = '🔴' if pred_label == 'Critical' else '🟡' if pred_label == 'Moderate' else '🟢'
 
     patient = {
@@ -93,7 +137,7 @@ def submit():
         'priority': pred_label,
         'color': color,
         'arrival_time': arrival_time,
-        'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        'time': arrival_time
     }
 
     mongo.db.patients.insert_one(patient)
@@ -104,23 +148,26 @@ def admin():
     severity_order = {"Critical": 1, "Moderate": 2, "Low": 3}
     patients = list(mongo.db.patients.find())
 
-    # Sort patients by severity then arrival_time
     patients.sort(key=lambda p: (
         severity_order.get(p.get('priority', 'Low'), 4),
         p.get('arrival_time', '')
     ))
 
-    # Group patients by date part of arrival_time
     grouped_patients = {}
     for patient in patients:
-        arrival_date = patient.get('arrival_time', '').split(' ')[0]
-        grouped_patients.setdefault(arrival_date, []).append(patient)
+        arrival_time = patient.get('arrival_time', '')
+        arrival_date = arrival_time.split(' ')[0]
+        time_block = get_time_block(arrival_time)
+        if arrival_date not in grouped_patients:
+            grouped_patients[arrival_date] = {}
+        grouped_patients[arrival_date].setdefault(time_block, []).append(patient)
 
-    # Sort the grouped keys (dates) ascending
+    time_block_order = ['Morning (9-12)', 'Afternoon (1-4)', 'Evening (5-8)', 'Late Night (9-12)', 'Other']
     grouped_patients = dict(sorted(grouped_patients.items()))
+    for date in grouped_patients:
+        grouped_patients[date] = dict(sorted(grouped_patients[date].items(), key=lambda x: time_block_order.index(x[0])))
 
     return render_template('admin.html', grouped_patients=grouped_patients)
-
 
 @app.route('/doctor', methods=['GET', 'POST'])
 def doctor():
@@ -139,7 +186,6 @@ def doctor():
             'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         })
 
-        # ✅ Handle old data without 'arrival_time'
         delete_query = {'mrn': current_patient['mrn']}
         if 'arrival_time' in current_patient:
             delete_query['arrival_time'] = current_patient['arrival_time']

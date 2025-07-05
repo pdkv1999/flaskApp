@@ -9,38 +9,41 @@
 <div class="container mt-5">
     <h2 class="mb-4">Hospital Management System - Admin Dashboard</h2>
 
-    {% for date, patients in grouped_patients.items() %}
-    <h4 class="mt-4">Appointments for {{ date }}</h4>
-    <table class="table table-bordered table-striped">
-        <thead class="table-dark">
-            <tr>
-                <th>#</th>
-                <th>MRN</th>
-                <th>Name</th>
-                <th>Complaint</th>
-                <th>Severity (Editable)</th>
-                <th>Arrival Time</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for patient in patients %}
-            <tr>
-                <td>{{ loop.index }}</td>
-                <td>{{ patient['mrn'] }}</td>
-                <td>{{ patient['name'] }}</td>
-                <td>{{ patient['complaint'] }}</td>
-                <td>
-                    <select class="form-select" onchange="updateSeverity('{{ patient['mrn'] }}', this.value)">
-                        <option {% if patient['priority'] == 'Critical' %}selected{% endif %}>Critical</option>
-                        <option {% if patient['priority'] == 'Moderate' %}selected{% endif %}>Moderate</option>
-                        <option {% if patient['priority'] == 'Low' %}selected{% endif %}>Low</option>
-                    </select>
-                </td>
-                <td>{{ patient['arrival_time'] }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    {% for date, blocks in grouped_patients.items() %}
+        <h4 class="mt-4">Appointments for {{ date }}</h4>
+        {% for block, patients in blocks.items() %}
+            <h5>{{ block }}</h5>
+            <table class="table table-bordered table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th>#</th>
+                        <th>MRN</th>
+                        <th>Name</th>
+                        <th>Complaint</th>
+                        <th>Severity (Editable)</th>
+                        <th>Arrival Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for patient in patients %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ patient['mrn'] }}</td>
+                        <td>{{ patient['name'] }}</td>
+                        <td>{{ patient['complaint'] }}</td>
+                        <td>
+                            <select class="form-select" onchange="updateSeverity('{{ patient['mrn'] }}', this.value)">
+                                <option {% if patient['priority'] == 'Critical' %}selected{% endif %}>Critical</option>
+                                <option {% if patient['priority'] == 'Moderate' %}selected{% endif %}>Moderate</option>
+                                <option {% if patient['priority'] == 'Low' %}selected{% endif %}>Low</option>
+                            </select>
+                        </td>
+                        <td>{{ patient['arrival_time'] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endfor %}
     {% endfor %}
 
     <a href="/" class="btn btn-secondary mt-3">Back to Patient Form</a>
