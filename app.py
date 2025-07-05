@@ -10,7 +10,6 @@ app = Flask(__name__)
 app.secret_key = 'triage_secret_key'
 
 app.config["MONGO_URI"] = "mongodb://localhost:27017/flask_triage_system"
-# app.config["MONGO_URI"] = "mongodb+srv://124116108:2GX4qsf4uHUGT09e@dileep-cluster.fllqptl.mongodb.net/flask_triage_system?retryWrites=true&w=majority&appName=Dileep-Cluster"
 mongo = PyMongo(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
@@ -44,6 +43,20 @@ def index():
     search_mrn = request.args.get('search_mrn')
     visits = list(mongo.db.visits.find({'mrn': search_mrn})) if search_mrn else []
 
+    patient_name = None
+    patient_mrn = None
+
+    if visits:
+        # get patient info from patients collection by MRN
+        patient_info = mongo.db.patients.find_one({'mrn': search_mrn})
+        if patient_info:
+            patient_name = patient_info.get('name', 'N/A')
+            patient_mrn = patient_info.get('mrn', 'N/A')
+        else:
+            # If patient not found in patients collection, fallback to visits first record name if exists
+            patient_name = visits[0].get('name', 'N/A')
+            patient_mrn = search_mrn
+
     appointments = list(mongo.db.patients.find({}, {"_id": 0, "arrival_time": 1}))
 
     booked_slots = []
@@ -62,6 +75,8 @@ def index():
         'patient.html',
         visits=visits if visits else None,
         search=search_mrn,
+        patient_name=patient_name,
+        patient_mrn=patient_mrn,
         booked_slots=booked_slots,
         fully_booked_days=fully_booked_days
     )
