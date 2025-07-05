@@ -10,6 +10,7 @@ app = Flask(__name__)
 app.secret_key = 'triage_secret_key'
 
 app.config["MONGO_URI"] = "mongodb://localhost:27017/flask_triage_system"
+# app.config["MONGO_URI"] = "mongodb+srv://124116108:2GX4qsf4uHUGT09e@dileep-cluster.fllqptl.mongodb.net/flask_triage_system?retryWrites=true&w=majority&appName=Dileep-Cluster"
 mongo = PyMongo(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
