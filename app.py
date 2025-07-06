@@ -129,10 +129,11 @@ def submit():
         critical_prob, low_prob, moderate_prob = probs
         if critical_prob > 0.5:
             pred_label = 'Critical'
-        elif moderate_prob >= 0.35 and low_prob < 0.65:
-            pred_label = 'Moderate'
         else:
-            pred_label = 'Low'
+            if low_prob >= moderate_prob:
+                pred_label = 'Low'
+            else:
+                pred_label = 'Low'
     else:
         pred_label = 'Low'
 
