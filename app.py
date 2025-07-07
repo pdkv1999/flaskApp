@@ -93,7 +93,7 @@ def admin():
     grouped_patients = {}
     severity_counts = Counter()
     time_frequencies = Counter()
-    weekday = None
+    date_to_weekday_map = {}
 
     for patient in patients:
         arrival_time = patient.get('arrival_time', '')
@@ -108,23 +108,17 @@ def admin():
             grouped_patients[arrival_date] = {}
         grouped_patients[arrival_date].setdefault(time_block, []).append(patient)
 
-        # Collect severity stats
         severity_counts[patient.get('priority', 'Low')] += 1
-
-        # Count arrival time frequency
         time_frequencies[arrival_hour_min] += 1
 
-        # Determine weekday (once)
-        if not weekday:
-            weekday = datetime.strptime(arrival_date, "%Y-%m-%d").strftime("%A")
+        if arrival_date not in date_to_weekday_map:
+            date_to_weekday_map[arrival_date] = datetime.strptime(arrival_date, "%Y-%m-%d").strftime("%A")
 
-    # Sort time blocks
     time_block_order = ['Morning (9-12)', 'Afternoon (1-4)', 'Evening (5-8)', 'Late Night (9-12)', 'Other']
     grouped_patients = dict(sorted(grouped_patients.items()))
     for date in grouped_patients:
         grouped_patients[date] = dict(sorted(grouped_patients[date].items(), key=lambda x: time_block_order.index(x[0])))
 
-    # Identify peak time
     peak_time = time_frequencies.most_common(1)[0][0] if time_frequencies else None
 
     return render_template(
@@ -132,8 +126,9 @@ def admin():
         grouped_patients=grouped_patients,
         severity_counts=severity_counts,
         peak_time=peak_time,
-        weekday=weekday
+        date_to_weekday_map=date_to_weekday_map
     )
+
 
 @app.route('/get_patient_info')
 def get_patient_info():
