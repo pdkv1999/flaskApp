@@ -5,7 +5,7 @@ from datetime import datetime
 import joblib
 import numpy as np
 import os
-from collections import Counter
+from collections import Counter, defaultdict
 
 app = Flask(__name__)
 app.secret_key = 'triage_secret_key'
@@ -94,6 +94,8 @@ def admin():
     severity_counts = Counter()
     time_frequencies = Counter()
     date_to_weekday_map = {}
+    weekday_severity_data = defaultdict(lambda: {'Critical': 0, 'Moderate': 0, 'Low': 0})
+    weekday_patient_counts = Counter()
 
     for patient in patients:
         arrival_time = patient.get('arrival_time', '')
@@ -101,6 +103,10 @@ def admin():
             continue
         arrival_date = arrival_time.split(' ')[0]
         arrival_hour_min = arrival_time.split(' ')[1]
+
+        weekday = datetime.strptime(arrival_date, "%Y-%m-%d").strftime("%A")
+        weekday_patient_counts[weekday] += 1
+        weekday_severity_data[weekday][patient.get('priority', 'Low')] += 1
 
         time_block = get_time_block(arrival_time)
 
@@ -112,7 +118,7 @@ def admin():
         time_frequencies[arrival_hour_min] += 1
 
         if arrival_date not in date_to_weekday_map:
-            date_to_weekday_map[arrival_date] = datetime.strptime(arrival_date, "%Y-%m-%d").strftime("%A")
+            date_to_weekday_map[arrival_date] = weekday
 
     time_block_order = ['Morning (9-12)', 'Afternoon (1-4)', 'Evening (5-8)', 'Late Night (9-12)', 'Other']
     grouped_patients = dict(sorted(grouped_patients.items()))
@@ -120,13 +126,17 @@ def admin():
         grouped_patients[date] = dict(sorted(grouped_patients[date].items(), key=lambda x: time_block_order.index(x[0])))
 
     peak_time = time_frequencies.most_common(1)[0][0] if time_frequencies else None
+    default_peak_day = weekday_patient_counts.most_common(1)[0][0] if weekday_patient_counts else None
 
     return render_template(
         'admin.html',
         grouped_patients=grouped_patients,
         severity_counts=severity_counts,
         peak_time=peak_time,
-        date_to_weekday_map=date_to_weekday_map
+        date_to_weekday_map=date_to_weekday_map,
+        weekday_severity_data=dict(weekday_severity_data),
+        weekday_patient_counts=dict(weekday_patient_counts),
+        default_peak_day=default_peak_day
     )
 
 

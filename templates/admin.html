@@ -88,17 +88,19 @@
     <!-- Chart and Summary -->
     <div class="mt-5 bg-white p-4 rounded shadow">
         <h5>Patient Summary Overview</h5>
-        <p><strong>Peak Weekday:</strong> 
-            {% if date_to_weekday_map %}
-                {{ date_to_weekday_map.values()|list|first }}
-            {% else %}
-                Not available
-            {% endif %}
+        <div class="mb-3">
+            <label for="weekday-select"><strong>Select Weekday:</strong></label>
+            <select id="weekday-select" class="form-select w-25" onchange="updateWeekday(this.value)">
+                {% for day in weekday_severity_data %}
+                    <option value="{{ day }}" {% if day == default_peak_day %}selected{% endif %}>{{ day }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <p><strong>Total Patients on <span id="selected-day">{{ default_peak_day }}</span>:</strong>
+            <span id="total-patients">{{ weekday_patient_counts[default_peak_day] }}</span>
         </p>
-        <p><strong>Peak Arrival Time:</strong> {{ peak_time or 'N/A' }}</p>
-        <canvas id="severityChart" height="100"></canvas>
+        <canvas id="weekdaySeverityChart" height="100"></canvas>
     </div>
-    
 
     <a href="/" class="btn btn-secondary mt-4">Back to Patient Form</a>
 </div>
@@ -107,31 +109,45 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
-    const ctx = document.getElementById('severityChart').getContext('2d');
-    const severityChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: ['Critical', 'Moderate', 'Low'],
-            datasets: [{
-                label: 'Number of Patients',
-                data: [
-                    {{ severity_counts['Critical'] or 0 }},
-                    {{ severity_counts['Moderate'] or 0 }},
-                    {{ severity_counts['Low'] or 0 }}
-                ],
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: { precision: 0 }
+    const severityData = {{ weekday_severity_data | tojson }};
+    const patientCounts = {{ weekday_patient_counts | tojson }};
+    const ctx = document.getElementById('weekdaySeverityChart').getContext('2d');
+    let weekdayChart;
+
+    function drawChart(day) {
+        const data = severityData[day] || { Critical: 0, Moderate: 0, Low: 0 };
+        if (weekdayChart) weekdayChart.destroy();
+        weekdayChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Critical', 'Moderate', 'Low'],
+                datasets: [{
+                    label: 'Number of Patients',
+                    data: [data.Critical, data.Moderate, data.Low],
+                    backgroundColor: ['#dc3545', '#ffc107', '#0d6efd']
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { stepSize: 1 }
+                    }
                 }
             }
-        }
-    });
+        });
+        document.getElementById("selected-day").innerText = day;
+        document.getElementById("total-patients").innerText = patientCounts[day] || 0;
+    }
+
+    function updateWeekday(day) {
+        drawChart(day);
+    }
+
+    window.onload = () => {
+        drawChart("{{ default_peak_day }}");
+    };
 
     function updateSeverity(mrn, newPriority) {
         fetch('/update_severity', {
