@@ -6,6 +6,7 @@ import joblib
 import numpy as np
 import os
 from collections import Counter, defaultdict
+from flask import session
 
 app = Flask(__name__)
 app.secret_key = 'triage_secret_key'
@@ -86,6 +87,7 @@ def admin():
     patients = list(mongo.db.patients.find())
 
     patients.sort(key=lambda p: (
+        p.get('arrival_time', '')[:10],  # Date part: YYYY-MM-DD
         severity_order.get(p.get('priority', 'Low'), 4),
         p.get('arrival_time', '')
     ))
@@ -231,42 +233,57 @@ def submit():
 
 @app.route('/doctor', methods=['GET', 'POST'])
 def doctor():
-    # (unchanged)
-    global current_patient
+    if request.method == 'POST':
+        patient = session.get('current_patient')
+        if patient:
+            medicine = request.form.get('medicine')
+            test = request.form.get('test')
 
-    if request.method == 'POST' and current_patient:
-        medicine = request.form.get('medicine')
-        test = request.form.get('test')
+            mongo.db.visits.insert_one({
+                'mrn': patient['mrn'],
+                'name': patient['name'],
+                'complaint': patient['complaint'],
+                'medicine': medicine,
+                'test': test,
+                'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            })
 
-        mongo.db.visits.insert_one({
-            'mrn': current_patient['mrn'],
-            'name': current_patient['name'],
-            'complaint': current_patient['complaint'],
-            'medicine': medicine,
-            'test': test,
-            'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        })
+            mongo.db.patients.delete_one({
+                'mrn': patient['mrn'],
+                'arrival_time': patient['arrival_time']
+            })
 
-        delete_query = {'mrn': current_patient['mrn']}
-        if 'arrival_time' in current_patient:
-            delete_query['arrival_time'] = current_patient['arrival_time']
+            session.pop('patient_index', None)
+            session.pop('current_patient', None)
+            return redirect('/doctor')
 
-        mongo.db.patients.delete_one(delete_query)
+    severity_order = {"Critical": 1, "Moderate": 2, "Low": 3}
 
-        current_patient = None
-        return redirect('/doctor')
+    patients = list(mongo.db.patients.find())
 
-    if not current_patient:
-        severity_order = {"Critical": 1, "Moderate": 2, "Low": 3}
-        patients = list(mongo.db.patients.find())
-        patients.sort(key=lambda p: (
-            severity_order.get(p.get('priority', 'Low'), 4),
-            p.get('arrival_time', '')
-        ))
-        if patients:
-            current_patient = patients[0]
+    patients.sort(key=lambda p: (
+        p.get('arrival_time', '')[:10],  # Group by date first
+        severity_order.get(p.get('priority', 'Low'), 4),  # Then severity
+        p.get('arrival_time', '')  # Then by full time
+    ))
 
-    return render_template('doctor.html', patient=current_patient)
+    index = session.get('patient_index', 0)
+
+    if request.args.get('next') == 'true':
+        index += 1
+        if index >= len(patients):
+            index = 0
+        session['patient_index'] = index
+
+    if patients:
+        current = patients[index]
+        session['current_patient'] = current
+    else:
+        current = None
+        session.pop('patient_index', None)
+        session.pop('current_patient', None)
+
+    return render_template('doctor.html', patient=current)
 
 @app.route('/update_severity', methods=['POST'])
 def update_severity():
