@@ -29,12 +29,12 @@ def get_time_block(arrival_str):
         hour = int(time_part.split(':')[0])
     except Exception:
         return 'Other'
-    if 9 <= hour < 12:
-        return 'Morning (9-12)'
-    elif 13 <= hour < 16:
-        return 'Afternoon (1-4)'
-    elif 17 <= hour < 20:
-        return 'Evening (5-8)'
+    if 9 <= hour < 13:
+        return 'Morning (9-1)'
+    elif 13 <= hour < 17:
+        return 'Afternoon (1-5)'
+    elif 17 <= hour < 21:
+        return 'Evening (5-9)'
     elif 21 <= hour < 24:
         return 'Late Night (9-12)'
     else:
@@ -122,10 +122,13 @@ def admin():
         if arrival_date not in date_to_weekday_map:
             date_to_weekday_map[arrival_date] = weekday
 
-    time_block_order = ['Morning (9-12)', 'Afternoon (1-4)', 'Evening (5-8)', 'Late Night (9-12)', 'Other']
+    time_block_order = ['Morning (9-1)', 'Afternoon (1-5)', 'Evening (5-9)', 'Late Night (9-12)', 'Other']
     grouped_patients = dict(sorted(grouped_patients.items()))
     for date in grouped_patients:
-        grouped_patients[date] = dict(sorted(grouped_patients[date].items(), key=lambda x: time_block_order.index(x[0])))
+        grouped_patients[date] = dict(sorted(
+            grouped_patients[date].items(),
+            key=lambda x: time_block_order.index(x[0]) if x[0] in time_block_order else len(time_block_order)
+        ))
 
     # Ensure all weekdays are represented and sorted
     all_weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -257,15 +260,23 @@ def doctor():
             session.pop('current_patient', None)
             return redirect('/doctor')
 
+    time_block_order = ['Morning (9-1)', 'Afternoon (1-5)', 'Evening (5-9)', 'Late Night (9-12)', 'Other']
     severity_order = {"Critical": 1, "Moderate": 2, "Low": 3}
 
     patients = list(mongo.db.patients.find())
 
-    patients.sort(key=lambda p: (
-        p.get('arrival_time', '')[:10],  # Group by date first
-        severity_order.get(p.get('priority', 'Low'), 4),  # Then severity
-        p.get('arrival_time', '')  # Then by full time
-    ))
+    def sort_key(p):
+        arrival = p.get('arrival_time', '')
+        if not arrival:
+            return ('9999-12-31', len(time_block_order), 99, '9999-12-31 23:59:59')
+        
+        date_part = arrival[:10]
+        time_block = get_time_block(arrival)
+        time_block_index = time_block_order.index(time_block) if time_block in time_block_order else len(time_block_order)
+        severity = severity_order.get(p.get('priority', 'Low'), 4)
+        return (date_part, time_block_index, severity, arrival)
+
+    patients.sort(key=sort_key)
 
     index = session.get('patient_index', 0)
 
