@@ -47,7 +47,7 @@ def get_time_block(arrival_str):
     else:
         return 'Other'
 
-# Patient registration screen + appointment availability check
+# Patient registration screen
 @app.route('/')
 def index():
     search_mrn = request.args.get('search_mrn')
@@ -66,28 +66,12 @@ def index():
             patient_name = visits[0].get('name', 'N/A')
             patient_mrn = search_mrn
 
-    # Check already booked slots to limit daily appointments
-    appointments = list(mongo.db.patients.find({}, {"_id": 0, "arrival_time": 1}))
-    booked_slots = []
-    date_counter = {}
-
-    for entry in appointments:
-        if "arrival_time" in entry:
-            arrival = entry["arrival_time"]
-            booked_slots.append(arrival)
-            date_part = arrival.split()[0]
-            date_counter[date_part] = date_counter.get(date_part, 0) + 1
-
-    fully_booked_days = [date for date, count in date_counter.items() if count >= 16]
-
     return render_template(
         'patient.html',
         visits=visits if visits else None,
         search=search_mrn,
         patient_name=patient_name,
-        patient_mrn=patient_mrn,
-        booked_slots=booked_slots,
-        fully_booked_days=fully_booked_days
+        patient_mrn=patient_mrn
     )
 
 # Admin dashboard showing patients grouped by date and time block
