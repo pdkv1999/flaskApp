@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <title>Admin Dashboard</title>
+
+    <!-- Bootstrap CSS for styling -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Inline CSS for background and styling the layout -->
     <style>
         body {
             background: url("/static/images/hospital_bg.jpg") no-repeat center center fixed;
@@ -19,7 +23,7 @@
             content: "";
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background-color: rgba(255, 255, 255, 0.85);
+            background-color: rgba(255, 255, 255, 0.85); /* white overlay */
             z-index: -1;
         }
         .container {
@@ -44,14 +48,19 @@
         }
     </style>
 </head>
+
 <body>
 <div class="container mt-5">
     <h2 class="mb-4">Hospital Management System - Admin Dashboard</h2>
 
+    <!-- Displaying current date and day for which appointments are listed -->
     <h4 class="mt-4">Appointments for {{ selected_date }} ({{ selected_day }})</h4>
 
+    <!-- Looping through time blocks (Morning, Afternoon, etc.) -->
     {% for block, patients in patients_by_block.items() %}
         <h5>{{ block }}</h5>
+
+        <!-- Table listing patients for each time block -->
         <table class="table table-bordered table-striped">
             <thead class="table-dark">
                 <tr>
@@ -70,6 +79,8 @@
                     <td>{{ patient['mrn'] }}</td>
                     <td>{{ patient['name'] }}</td>
                     <td>{{ patient['complaint'] }}</td>
+
+                    <!-- Editable dropdown to change severity level -->
                     <td>
                         <select class="form-select" onchange="updateSeverity('{{ patient['mrn'] }}', '{{ patient['arrival_time'] }}', this.value)">
                             <option {% if patient['priority'] == 'Critical' %}selected{% endif %}>Critical</option>
@@ -84,7 +95,7 @@
         </table>
     {% endfor %}
 
-    <!-- Pagination Controls -->
+    <!-- Pagination Buttons -->
     <div class="mt-4 d-flex justify-content-between">
         {% if prev_date %}
             <a href="/admin?date={{ prev_date }}" class="btn btn-outline-primary">&laquo; Previous Day</a>
@@ -99,9 +110,11 @@
         {% endif %}
     </div>
 
-    <!-- Chart and Summary -->
+    <!-- Weekly Severity Chart Section -->
     <div class="mt-5 bg-white p-4 rounded shadow">
         <h5>Patient Summary Overview</h5>
+
+        <!-- Dropdown to choose weekday -->
         <div class="mb-3">
             <label for="weekday-select"><strong>Select Weekday:</strong></label>
             <select id="weekday-select" class="form-select w-25" onchange="updateWeekday(this.value)">
@@ -110,27 +123,36 @@
                 {% endfor %}
             </select>            
         </div>
+
+        <!-- Display selected weekday and patient count -->
         <p><strong>Total Patients on <span id="selected-day">{{ default_peak_day }}</span>:</strong>
             <span id="total-patients">{{ weekday_patient_counts[default_peak_day] }}</span>
         </p>
+
+        <!-- Canvas element where bar chart will be rendered -->
         <canvas id="weekdaySeverityChart" height="100"></canvas>
     </div>
 
+    <!-- Link to go back to patient form -->
     <a href="/" class="btn btn-secondary mt-4">Back to Patient Form</a>
 </div>
 
-<!-- Chart.js CDN -->
+<!-- Load Chart.js library for drawing severity chart -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
+    // Fetching data from Flask context
     const severityData = {{ weekday_severity_data | tojson }};
     const patientCounts = {{ weekday_patient_counts | tojson }};
     const ctx = document.getElementById('weekdaySeverityChart').getContext('2d');
     let weekdayChart;
 
+    // Function to draw bar chart for given weekday
     function drawChart(day) {
         const data = severityData[day] || { Critical: 0, Moderate: 0, Low: 0 };
-        if (weekdayChart) weekdayChart.destroy();
+
+        if (weekdayChart) weekdayChart.destroy(); // Redraw chart on change
+
         weekdayChart = new Chart(ctx, {
             type: 'bar',
             data: {
@@ -138,7 +160,7 @@
                 datasets: [{
                     label: 'Number of Patients',
                     data: [data.Critical, data.Moderate, data.Low],
-                    backgroundColor: ['#dc3545', '#ffc107', '#0d6efd']
+                    backgroundColor: ['#dc3545', '#ffc107', '#0d6efd']  // red, yellow, blue
                 }]
             },
             options: {
@@ -151,18 +173,23 @@
                 }
             }
         });
+
+        // Update text below the chart
         document.getElementById("selected-day").innerText = day;
         document.getElementById("total-patients").innerText = patientCounts[day] || 0;
     }
 
+    // Triggered on dropdown change
     function updateWeekday(day) {
         drawChart(day);
     }
 
+    // Initialize chart with default day on load
     window.onload = () => {
         drawChart("{{ default_peak_day }}");
     };
 
+    // AJAX call to update patient severity
     function updateSeverity(mrn, arrivalTime, newPriority) {
         fetch('/update_severity', {
             method: 'POST',
@@ -170,7 +197,7 @@
             body: JSON.stringify({ mrn: mrn, arrival_time: arrivalTime, priority: newPriority })
         }).then(res => {
             if (res.ok) {
-                location.reload();
+                location.reload();  // Refresh page to reflect changes
             } else {
                 alert("Failed to update severity.");
             }

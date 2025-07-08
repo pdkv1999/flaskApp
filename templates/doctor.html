@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <title>Doctor Screen</title>
+
+    <!-- Bootstrap CSS for layout and design -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Custom styles for background, layout, and responsiveness -->
     <style>
         body {
             background: url("/static/images/hospital_bg.jpg") no-repeat center center fixed;
@@ -19,7 +23,7 @@
             content: "";
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background-color: rgba(255, 255, 255, 0.85);
+            background-color: rgba(255, 255, 255, 0.85); /* Soft overlay */
             z-index: -1;
         }
         .container {
@@ -42,6 +46,8 @@
             border-radius: 8px;
             overflow: hidden;
         }
+
+        /* Real-time notification banner for severity updates */
         #severity-notification {
             display: none;
             position: fixed;
@@ -56,23 +62,30 @@
         }
     </style>
 </head>
+
 <body>
 
+<!-- Real-time severity change banner -->
 <div id="severity-notification"></div>
 
 <div class="container mt-5">
+
+    <!-- Navigation buttons between Patient, Admin, and Doctor screens -->
     <div class="mb-4 text-center">
         <a href="/" class="btn btn-outline-primary mx-1">Patient</a>
         <a href="/admin" class="btn btn-outline-success mx-1">Admin</a>
         <a href="/doctor" class="btn btn-outline-warning mx-1">Doctor</a>
     </div>
+
     <h2 class="mb-4">Doctor Screen</h2>
-    
+
+    <!-- Display number of patients left in queue -->
     <div class="alert alert-info mt-3" role="alert">
         Patients Remaining: <strong>{{ remaining_count }}</strong>
     </div>    
 
     {% if patient %}
+    <!-- Table showing current patient details -->
     <table class="table table-bordered mb-4">
         <thead class="table-dark">
             <tr>
@@ -89,6 +102,8 @@
             </tr>
         </tbody>
     </table>
+
+    <!-- Form for doctor to record prescriptions and tests -->
     <form method="POST" action="/doctor">
         <div class="row mb-3">
             <div class="col">
@@ -102,21 +117,28 @@
         </div>
         <button type="submit" class="btn btn-primary">Submit</button>
     </form>
+
     {% else %}
+    <!-- If there is no patient data, show warning -->
     <div class="alert alert-warning">No patient data available.</div>
     {% endif %}
 </div>
 
-<!-- Socket.IO -->
+<!-- Include Socket.IO library for real-time communication -->
 <script src="https://cdn.socket.io/4.3.2/socket.io.min.js"></script>
 <script>
-const socket = io();
+const socket = io();  // Initialize WebSocket connection
 const notifyDiv = document.getElementById('severity-notification');
 
+// When admin updates severity, notify the doctor in real-time
 socket.on('severity_updated', function(data) {
     notifyDiv.innerText = `Admin changed the severity of patient with MRN: ${data.mrn} to ${data.priority}`;
     notifyDiv.style.display = 'block';
-    setTimeout(() => { notifyDiv.style.display = 'none'; }, 5000);
+
+    // Auto-hide notification after 5 seconds
+    setTimeout(() => {
+        notifyDiv.style.display = 'none';
+    }, 5000);
 });
 </script>
 
