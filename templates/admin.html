@@ -128,6 +128,11 @@
         <p><strong>Total Patients on <span id="selected-day">{{ default_peak_day }}</span>:</strong>
             <span id="total-patients">{{ weekday_patient_counts[default_peak_day] }}</span>
         </p>
+        
+        <div>
+            <strong>📈 Peak Day:</strong> {{ default_peak_day }}<br>
+            <strong>⏰ Peak Time:</strong> {{ peak_time }}
+        </div>
 
         <!-- Canvas element where bar chart will be rendered -->
         <canvas id="weekdaySeverityChart" height="100"></canvas>
