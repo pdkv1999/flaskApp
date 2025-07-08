@@ -91,10 +91,10 @@
         <div class="mb-3">
             <label for="weekday-select"><strong>Select Weekday:</strong></label>
             <select id="weekday-select" class="form-select w-25" onchange="updateWeekday(this.value)">
-                {% for day in weekday_severity_data %}
+                {% for day in ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] %}
                     <option value="{{ day }}" {% if day == default_peak_day %}selected{% endif %}>{{ day }}</option>
                 {% endfor %}
-            </select>
+            </select>            
         </div>
         <p><strong>Total Patients on <span id="selected-day">{{ default_peak_day }}</span>:</strong>
             <span id="total-patients">{{ weekday_patient_counts[default_peak_day] }}</span>

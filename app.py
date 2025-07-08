@@ -125,8 +125,16 @@ def admin():
     for date in grouped_patients:
         grouped_patients[date] = dict(sorted(grouped_patients[date].items(), key=lambda x: time_block_order.index(x[0])))
 
+    # Ensure all weekdays are represented and sorted
+    all_weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    for day in all_weekdays:
+        if day not in weekday_severity_data:
+            weekday_severity_data[day] = {'Critical': 0, 'Moderate': 0, 'Low': 0}
+        if day not in weekday_patient_counts:
+            weekday_patient_counts[day] = 0
+
     peak_time = time_frequencies.most_common(1)[0][0] if time_frequencies else None
-    default_peak_day = weekday_patient_counts.most_common(1)[0][0] if weekday_patient_counts else None
+    default_peak_day = weekday_patient_counts.most_common(1)[0][0] if weekday_patient_counts else "Monday"
 
     return render_template(
         'admin.html',
