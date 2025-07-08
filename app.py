@@ -265,7 +265,7 @@ def doctor():
             medicine = request.form.get('medicine')
             test = request.form.get('test')
 
-            # Record visit
+            # Save visit and remove from patient queue
             mongo.db.visits.insert_one({
                 'mrn': patient['mrn'],
                 'name': patient['name'],
@@ -275,49 +275,41 @@ def doctor():
                 'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             })
 
-            # Remove patient from current queue
             mongo.db.patients.delete_one({
                 'mrn': patient['mrn'],
                 'arrival_time': patient['arrival_time']
             })
 
+            # Clear session after submitting, so next patient loads
             session.pop('patient_index', None)
             session.pop('current_patient', None)
             return redirect('/doctor')
 
-    # Sort patients by date → time block → severity
-    time_block_order = ['Morning (9-1)', 'Afternoon (1-5)', 'Evening (5-9)', 'Late Night (9-12)', 'Other']
-    severity_order = {"Critical": 1, "Moderate": 2, "Low": 3}
-    patients = list(mongo.db.patients.find())
+    # Patient selection logic (GET only, used when session is empty)
+    if 'current_patient' not in session:
+        time_block_order = ['Morning (9-1)', 'Afternoon (1-5)', 'Evening (5-9)', 'Late Night (9-12)', 'Other']
+        severity_order = {"Critical": 1, "Moderate": 2, "Low": 3}
 
-    def sort_key(p):
-        arrival = p.get('arrival_time', '')
-        if not arrival:
-            return ('9999-12-31', len(time_block_order), 99, '9999-12-31 23:59:59')
-        date_part = arrival[:10]
-        time_block = get_time_block(arrival)
-        block_idx = time_block_order.index(time_block) if time_block in time_block_order else len(time_block_order)
-        severity = severity_order.get(p.get('priority', 'Low'), 4)
-        return (date_part, block_idx, severity, arrival)
+        patients = list(mongo.db.patients.find())
 
-    patients.sort(key=sort_key)
+        def sort_key(p):
+            arrival = p.get('arrival_time', '')
+            if not arrival:
+                return ('9999-12-31', len(time_block_order), 99, '9999-12-31 23:59:59')
+            date_part = arrival[:10]
+            time_block = get_time_block(arrival)
+            block_idx = time_block_order.index(time_block) if time_block in time_block_order else len(time_block_order)
+            severity = severity_order.get(p.get('priority', 'Low'), 4)
+            return (date_part, block_idx, severity, arrival)
 
-    index = session.get('patient_index', 0)
-    if request.args.get('next') == 'true':
-        index += 1
-        if index >= len(patients):
-            index = 0
-        session['patient_index'] = index
+        patients.sort(key=sort_key)
 
-    if patients:
-        current = patients[index]
-        session['current_patient'] = current
-        remaining_count = len(patients) - index
-    else:
-        current = None
-        session.pop('patient_index', None)
-        session.pop('current_patient', None)
-        remaining_count = 0
+        # Store first available patient in session
+        if patients:
+            session['current_patient'] = patients[0]
+
+    current = session.get('current_patient')
+    remaining_count = mongo.db.patients.count_documents({}) - 1 if current else 0
 
     return render_template('doctor.html', patient=current, remaining_count=remaining_count)
 
