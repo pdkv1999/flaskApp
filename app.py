@@ -270,20 +270,19 @@ def doctor():
 
 @app.route('/update_severity', methods=['POST'])
 def update_severity():
-    # (unchanged)
     data = request.json
     mrn = data.get('mrn')
+    arrival_time = data.get('arrival_time')
     new_priority = data.get('priority')
 
     severity_colors = {'Critical': '🔴', 'Moderate': '🟡', 'Low': '🟢'}
     new_color = severity_colors.get(new_priority, '⚪')
 
     result = mongo.db.patients.update_one(
-        {'mrn': mrn},
+        {'mrn': mrn, 'arrival_time': arrival_time},
         {'$set': {'priority': new_priority, 'color': new_color}}
     )
 
-    socketio.emit('severity_updated', {'mrn': mrn, 'priority': new_priority})
     return jsonify(success=(result.modified_count > 0))
 
 if __name__ == '__main__':
