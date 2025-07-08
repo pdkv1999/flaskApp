@@ -48,42 +48,56 @@
 <div class="container mt-5">
     <h2 class="mb-4">Hospital Management System - Admin Dashboard</h2>
 
-    {% for date, blocks in grouped_patients.items() %}
-        <h4 class="mt-4">Appointments for {{ date }} ({{ date_to_weekday_map[date] }})</h4>
-        {% for block, patients in blocks.items() %}
-            <h5>{{ block }}</h5>
-            <table class="table table-bordered table-striped">
-                <thead class="table-dark">
-                    <tr>
-                        <th>#</th>
-                        <th>MRN</th>
-                        <th>Name</th>
-                        <th>Complaint</th>
-                        <th>Severity (Editable)</th>
-                        <th>Arrival Time</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for patient in patients %}
-                    <tr>
-                        <td>{{ loop.index }}</td>
-                        <td>{{ patient['mrn'] }}</td>
-                        <td>{{ patient['name'] }}</td>
-                        <td>{{ patient['complaint'] }}</td>
-                        <td>
-                            <select class="form-select" onchange="updateSeverity('{{ patient['mrn'] }}', '{{ patient['arrival_time'] }}', this.value)">
-                                <option {% if patient['priority'] == 'Critical' %}selected{% endif %}>Critical</option>
-                                <option {% if patient['priority'] == 'Moderate' %}selected{% endif %}>Moderate</option>
-                                <option {% if patient['priority'] == 'Low' %}selected{% endif %}>Low</option>
-                            </select>                            
-                        </td>
-                        <td>{{ patient['arrival_time'] }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% endfor %}
+    <h4 class="mt-4">Appointments for {{ selected_date }} ({{ selected_day }})</h4>
+
+    {% for block, patients in patients_by_block.items() %}
+        <h5>{{ block }}</h5>
+        <table class="table table-bordered table-striped">
+            <thead class="table-dark">
+                <tr>
+                    <th>#</th>
+                    <th>MRN</th>
+                    <th>Name</th>
+                    <th>Complaint</th>
+                    <th>Severity (Editable)</th>
+                    <th>Arrival Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for patient in patients %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ patient['mrn'] }}</td>
+                    <td>{{ patient['name'] }}</td>
+                    <td>{{ patient['complaint'] }}</td>
+                    <td>
+                        <select class="form-select" onchange="updateSeverity('{{ patient['mrn'] }}', '{{ patient['arrival_time'] }}', this.value)">
+                            <option {% if patient['priority'] == 'Critical' %}selected{% endif %}>Critical</option>
+                            <option {% if patient['priority'] == 'Moderate' %}selected{% endif %}>Moderate</option>
+                            <option {% if patient['priority'] == 'Low' %}selected{% endif %}>Low</option>
+                        </select>                            
+                    </td>
+                    <td>{{ patient['arrival_time'] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     {% endfor %}
+
+    <!-- Pagination Controls -->
+    <div class="mt-4 d-flex justify-content-between">
+        {% if prev_date %}
+            <a href="/admin?date={{ prev_date }}" class="btn btn-outline-primary">&laquo; Previous Day</a>
+        {% else %}
+            <span></span>
+        {% endif %}
+        
+        {% if next_date %}
+            <a href="/admin?date={{ next_date }}" class="btn btn-outline-primary">Next Day &raquo;</a>
+        {% else %}
+            <span></span>
+        {% endif %}
+    </div>
 
     <!-- Chart and Summary -->
     <div class="mt-5 bg-white p-4 rounded shadow">
@@ -150,18 +164,18 @@
     };
 
     function updateSeverity(mrn, arrivalTime, newPriority) {
-    fetch('/update_severity', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mrn: mrn, arrival_time: arrivalTime, priority: newPriority })
-    }).then(res => {
-        if (res.ok) {
-            location.reload();
-        } else {
-            alert("Failed to update severity.");
-        }
-    });
-}
+        fetch('/update_severity', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mrn: mrn, arrival_time: arrivalTime, priority: newPriority })
+        }).then(res => {
+            if (res.ok) {
+                location.reload();
+            } else {
+                alert("Failed to update severity.");
+            }
+        });
+    }
 </script>
 </body>
 </html>

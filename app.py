@@ -81,6 +81,9 @@ def index():
         fully_booked_days=fully_booked_days
     )
 
+from flask import render_template, request
+from datetime import datetime
+
 @app.route('/admin')
 def admin():
     severity_order = {"Critical": 1, "Moderate": 2, "Low": 3}
@@ -130,7 +133,7 @@ def admin():
             key=lambda x: time_block_order.index(x[0]) if x[0] in time_block_order else len(time_block_order)
         ))
 
-    # Ensure all weekdays are represented and sorted
+    # Ensure all weekdays are represented
     all_weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     for day in all_weekdays:
         if day not in weekday_severity_data:
@@ -138,8 +141,23 @@ def admin():
         if day not in weekday_patient_counts:
             weekday_patient_counts[day] = 0
 
+    # Default peak hour and weekday
     peak_time = time_frequencies.most_common(1)[0][0] if time_frequencies else None
     default_peak_day = weekday_patient_counts.most_common(1)[0][0] if weekday_patient_counts else "Monday"
+
+    # ✅ Add pagination logic (safe extension)
+    date_keys = list(grouped_patients.keys())
+    selected_date = request.args.get('date', date_keys[0] if date_keys else None)
+
+    prev_date = next_date = None
+    if selected_date in date_keys:
+        current_index = date_keys.index(selected_date)
+        if current_index > 0:
+            prev_date = date_keys[current_index - 1]
+        if current_index < len(date_keys) - 1:
+            next_date = date_keys[current_index + 1]
+    else:
+        selected_date = None
 
     return render_template(
         'admin.html',
@@ -149,9 +167,15 @@ def admin():
         date_to_weekday_map=date_to_weekday_map,
         weekday_severity_data=dict(weekday_severity_data),
         weekday_patient_counts=dict(weekday_patient_counts),
-        default_peak_day=default_peak_day
-    )
+        default_peak_day=default_peak_day,
 
+        # New context for pagination-based view
+        selected_date=selected_date,
+        selected_day=datetime.strptime(selected_date, "%Y-%m-%d").strftime("%A") if selected_date else None,
+        patients_by_block=grouped_patients.get(selected_date, {}),
+        prev_date=prev_date,
+        next_date=next_date
+    )
 
 @app.route('/get_patient_info')
 def get_patient_info():
