@@ -67,6 +67,10 @@
         <a href="/doctor" class="btn btn-outline-warning mx-1">Doctor</a>
     </div>
     <h2 class="mb-4">Doctor Screen</h2>
+    
+    <div class="alert alert-info mt-3" role="alert">
+        Patients Remaining: <strong>{{ remaining_count }}</strong>
+    </div>    
 
     {% if patient %}
     <table class="table table-bordered mb-4">

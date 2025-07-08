@@ -269,7 +269,7 @@ def doctor():
         arrival = p.get('arrival_time', '')
         if not arrival:
             return ('9999-12-31', len(time_block_order), 99, '9999-12-31 23:59:59')
-        
+
         date_part = arrival[:10]
         time_block = get_time_block(arrival)
         time_block_index = time_block_order.index(time_block) if time_block in time_block_order else len(time_block_order)
@@ -289,12 +289,14 @@ def doctor():
     if patients:
         current = patients[index]
         session['current_patient'] = current
+        remaining_count = len(patients) - index
     else:
         current = None
         session.pop('patient_index', None)
         session.pop('current_patient', None)
+        remaining_count = 0  # 🔧 Define it even if no patients
 
-    return render_template('doctor.html', patient=current)
+    return render_template('doctor.html', patient=current, remaining_count=remaining_count)
 
 @app.route('/update_severity', methods=['POST'])
 def update_severity():
