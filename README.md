@@ -98,27 +98,21 @@ project/
    cd triage-system
    ```
 
-2. **Create a virtual environment**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies**
+2. **Install dependencies**
    ```bash
    pip install -r requirements.txt
    ```
 
-4. **Ensure MongoDB is running locally**
+3. **Ensure MongoDB is running locally**
    - Database: `flask_triage_system`
    - Collections: `patients`, `visits`
 
-5. **Run the Flask app**
+4. **Run the Flask app**
    ```bash
    python app.py
    ```
 
-6. **Access in browser**
+5. **Access in browser**
    ```
    http://localhost:5000
    ```
