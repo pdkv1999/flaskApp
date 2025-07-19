@@ -94,8 +94,7 @@ project/
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/triage-system.git
-   cd triage-system
+   git clone git@github.com:pdkv1999/flaskApp.git
    ```
 
 2. **Install dependencies**
